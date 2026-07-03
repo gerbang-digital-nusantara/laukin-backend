@@ -1,0 +1,77 @@
+name: Setup Nginx API Path
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "inspect (lihat config) | apply (pasang location /laukin-api/)"
+        required: true
+        default: "inspect"
+
+jobs:
+  nginx:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Run on VPS
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.VPS_IP }}
+          username: ${{ secrets.VPS_USER }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          script: |
+            set -e
+            MODE="${{ github.event.inputs.mode }}"
+            CONF=$(grep -rls "lauk\.in" /etc/nginx/sites-enabled/ /etc/nginx/conf.d/ 2>/dev/null | head -1)
+            if [ -z "$CONF" ]; then
+              echo "Tidak menemukan config nginx untuk lauk.in"; exit 1
+            fi
+            echo "Config: $CONF"
+
+            if [ "$MODE" = "inspect" ]; then
+              echo "--- struktur config (komentar disembunyikan) ---"
+              grep -vE '^\s*#' "$CONF" | grep -vE '^\s*$'
+              echo "--- status nginx ---"
+              nginx -t 2>&1 || true
+              exit 0
+            fi
+
+            if grep -q "laukin-api" "$CONF"; then
+              echo "location /laukin-api/ sudah ada, tidak ada perubahan."
+            else
+              BACKUP="$CONF.bak-laukin-$(date +%s)"
+              cp "$CONF" "$BACKUP"
+              echo "Backup: $BACKUP"
+
+              cat > /tmp/laukin-api-block.txt <<'BLOCK'
+                location /laukin-api/ {
+                    proxy_pass http://127.0.0.1:4207/;
+                    proxy_http_version 1.1;
+                    proxy_set_header Host $host;
+                    proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                    proxy_set_header X-Forwarded-Proto $scheme;
+                    proxy_set_header Upgrade $http_upgrade;
+                    proxy_set_header Connection "upgrade";
+                    proxy_read_timeout 3600s;
+                    proxy_send_timeout 3600s;
+                }
+BLOCK
+
+              sed -i "/^\s*server_name[^;]*lauk\.in/r /tmp/laukin-api-block.txt" "$CONF"
+
+              if nginx -t; then
+                nginx -s reload || systemctl reload nginx
+                echo "Nginx berhasil di-reload."
+              else
+                echo "nginx -t GAGAL - mengembalikan backup."
+                cp "$BACKUP" "$CONF"
+                nginx -t
+                exit 1
+              fi
+            fi
+
+            echo "--- verifikasi ---"
+            sleep 1
+            curl -s -o /dev/null -w "health via nginx: HTTP %{http_code}\n" https://lauk.in/laukin-api/health || true
+            curl -s -o /dev/null -w "health langsung : HTTP %{http_code}\n" http://127.0.0.1:4207/health || true
