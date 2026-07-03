@@ -1,0 +1,18 @@
+services:
+  laukin-backend:
+    image: ghcr.io/fcodex1/laukin-backend:latest
+    container_name: laukin-backend-container
+    ports:
+      - "${APP_PORT:-3085}:4000"
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s

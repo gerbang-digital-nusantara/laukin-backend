@@ -1,0 +1,71 @@
+name: Deploy LaukIn Backend
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-laukin-backend
+  cancel-in-progress: true
+
+env:
+  IMAGE_NAME: ghcr.io/fcodex1/laukin-backend:latest
+  DEPLOY_PATH: /home/app/laukin-backend
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ secrets.PACKAGE_USERNAME }}
+          password: ${{ secrets.PACKAGE_TOKEN }}
+
+      - name: Build and Push Image
+        run: |
+          docker build -t "$IMAGE_NAME" .
+          docker push "$IMAGE_NAME"
+
+      - name: Copy deploy files to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_IP }}
+          username: ${{ secrets.VPS_USER }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          source: "docker-compose.yml,.env.example"
+          target: ${{ env.DEPLOY_PATH }}/
+
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.VPS_IP }}
+          username: ${{ secrets.VPS_USER }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          script: |
+            set -e
+            mkdir -p "${{ env.DEPLOY_PATH }}"
+            cd "${{ env.DEPLOY_PATH }}"
+
+            if [ -n "${{ secrets.ENV_FILE }}" ]; then
+              cat > .env <<'ENVEOF'
+            ${{ secrets.ENV_FILE }}
+            ENVEOF
+              echo "File .env ditulis dari secret ENV_FILE."
+            elif [ ! -f .env ]; then
+              cp .env.example .env
+              echo "File .env belum ada, dibuat dari .env.example. Isi DATABASE_URL, JWT_SECRET, dan CORS_ORIGINS di VPS."
+            fi
+
+            echo "${{ secrets.PACKAGE_TOKEN }}" | docker login ghcr.io -u "${{ secrets.PACKAGE_USERNAME }}" --password-stdin
+            docker compose pull
+            docker compose up -d --remove-orphans
+            docker image prune -f
+            docker compose ps
