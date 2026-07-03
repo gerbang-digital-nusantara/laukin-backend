@@ -1,6 +1,6 @@
 services:
   laukin-backend:
-    image: ghcr.io/fcodex1/laukin-backend:latest
+    image: ghcr.io/gerbang-digital-nusantara/laukin-backend:latest
     container_name: laukin-backend-container
     ports:
       - "${APP_PORT:-3085}:4000"

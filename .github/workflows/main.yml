@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  IMAGE_NAME: ghcr.io/fcodex1/laukin-backend:latest
+  IMAGE_NAME: ghcr.io/gerbang-digital-nusantara/laukin-backend:latest
   DEPLOY_PATH: /home/app/laukin-backend
 
 jobs:
