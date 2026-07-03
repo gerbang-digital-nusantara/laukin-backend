@@ -24,28 +24,23 @@ jobs:
             MODE="${{ github.event.inputs.mode }}"
 
             if [ "$MODE" = "inspect" ]; then
-              echo "--- web server terpasang ---"
-              echo "nginx : $(command -v nginx || echo tidak-ada)"
-              echo "caddy : $(command -v caddy || echo tidak-ada)"
-              echo "apache: $(command -v apache2 || echo tidak-ada)"
-              echo "--- port yang listen (80/443/3084/4207) ---"
-              ss -tlnp 2>/dev/null | grep -E ':(80|443|3084|4207)\s' | awk '{print $4, $6}' || echo "(kosong)"
-              echo "--- container docker ---"
-              docker ps --format '{{.Names}} -> {{.Ports}}' || true
-              echo "--- config nginx yang ada ---"
-              ls /etc/nginx/sites-enabled/ 2>/dev/null || true
-              ls /etc/nginx/conf.d/ 2>/dev/null || true
-              grep -rh "server_name" /etc/nginx/ 2>/dev/null | sort -u | head -10 || true
+              CONF=$(grep -Rls "lauk\.in" /etc/nginx/sites-enabled/ /etc/nginx/conf.d/ 2>/dev/null | head -1)
+              echo "Config ditemukan: ${CONF:-tidak ada}"
+              if [ -n "$CONF" ]; then
+                echo "--- isi config (tanpa komentar) ---"
+                grep -vE '^\s*#' "$CONF" | grep -vE '^\s*$'
+              fi
               echo "--- apakah domain mengarah ke VPS ini? ---"
               VPS_PUB=$(curl -s -4 ifconfig.me || true)
-              for d in lauk.in www.lauk.in api.lauk.in; do
+              for d in catalog.lauk.in lauk.in; do
                 R=$(getent hosts "$d" | awk '{print $1}' | head -1)
                 if [ -n "$R" ] && [ "$R" = "$VPS_PUB" ]; then echo "$d -> MENGARAH ke VPS ini"; else echo "$d -> bukan ke VPS ini"; fi
               done
               exit 0
             fi
 
-            CONF=$(grep -rls "lauk\.in" /etc/nginx/sites-enabled/ /etc/nginx/conf.d/ 2>/dev/null | head -1)
+            # -R (bukan -r) supaya symlink di sites-enabled ikut dibaca.
+            CONF=$(grep -Rls "lauk\.in" /etc/nginx/sites-enabled/ /etc/nginx/conf.d/ 2>/dev/null | head -1)
             if [ -z "$CONF" ]; then
               echo "Tidak menemukan config nginx untuk lauk.in"; exit 1
             fi
