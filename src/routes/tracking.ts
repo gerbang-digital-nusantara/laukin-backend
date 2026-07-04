@@ -4,6 +4,7 @@ import { requireAuth, AuthedRequest } from "../auth";
 import { asyncHandler } from "../asyncHandler";
 import { totalRouteKm } from "../haversine";
 import { recordLocation } from "../locationStore";
+import { emitPenjualUpdate } from "../realtime";
 
 const router = Router();
 
@@ -16,6 +17,9 @@ router.post(
       return res.status(400).json({ error: "lat dan lng wajib diisi (angka)" });
     }
     await recordLocation(req.user!.id, lat, lng);
+    // Broadcast live ke peta admin/pembeli (jalur ini dipakai aplikasi Android
+    // saat mengirim lokasi di background lewat HTTP).
+    emitPenjualUpdate({ id: req.user!.id, name: req.user!.name, lat, lng });
     res.status(201).json({ ok: true });
   })
 );
