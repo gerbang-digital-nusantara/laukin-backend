@@ -154,6 +154,34 @@ router.get(
   })
 );
 
+// Aktivitas penjualan hari ini (semua kang lauk), dikelompokkan per transaksi
+// keranjang. Karena satu keranjang di-INSERT dalam satu transaksi DB, semua
+// barisnya punya `waktu` (now()) yang sama — jadi grup by (penjual, waktu) tepat
+// memisahkan tiap transaksi. Dipakai admin untuk mengisi feed "Aktivitas
+// Penjualan" saat halaman dibuka (bukan hanya yang datang live setelahnya).
+router.get(
+  "/aktivitas",
+  requireAuth("admin"),
+  asyncHandler(async (_req, res) => {
+    const result = await pool.query(
+      `SELECT t.penjual_id,
+              u.name AS penjual_nama,
+              t.waktu,
+              COALESCE(SUM(t.jumlah * t.harga), 0)::numeric AS total,
+              json_agg(json_build_object('nama_barang', s.nama_barang, 'jumlah', t.jumlah, 'harga', t.harga)
+                       ORDER BY s.nama_barang) AS items
+       FROM transaksi_kasir t
+       JOIN stok s ON s.id = t.stok_id
+       JOIN users u ON u.id = t.penjual_id
+       WHERE t.waktu::date = CURRENT_DATE
+       GROUP BY t.penjual_id, u.name, t.waktu
+       ORDER BY t.waktu DESC
+       LIMIT 20`
+    );
+    res.json(result.rows);
+  })
+);
+
 // Ringkasan penjualan hari ini (untuk kartu statistik penjual/admin).
 router.get(
   "/ringkasan",
