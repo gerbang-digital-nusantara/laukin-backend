@@ -34,7 +34,8 @@ const corsOrigin = allowedOrigins.length
   : true;
 
 app.use(cors({ origin: corsOrigin as any }));
-app.use(express.json());
+// Limit dinaikkan agar upload QR pembayaran (data URL base64) muat.
+app.use(express.json({ limit: "5mb" }));
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
 app.use("/auth", authRoutes);
