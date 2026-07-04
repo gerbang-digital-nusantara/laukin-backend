@@ -6,6 +6,7 @@ import { Server } from "socket.io";
 import { pool } from "./db";
 import { verifyToken } from "./auth";
 import { recordLocation } from "./locationStore";
+import { setIo } from "./realtime";
 
 import authRoutes from "./routes/auth";
 import stokRoutes from "./routes/stok";
@@ -54,6 +55,8 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 const io = new Server(server, {
   cors: { origin: corsOrigin as any },
 });
+// Beri route HTTP akses ke io untuk broadcast realtime (stok, transaksi).
+setIo(io);
 
 io.on("connection", (socket) => {
   let trackedUserId: number | null = null;

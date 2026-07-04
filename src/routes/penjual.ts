@@ -28,6 +28,24 @@ router.get(
   })
 );
 
+// Publik: menu/stok hari ini milik satu kang lauk — untuk ditampilkan ke pembeli
+// (nama barang, harga, sisa). Hanya field non-sensitif; dipakai user-app saat
+// pembeli mengetuk seorang kang lauk di peta.
+router.get(
+  "/:id/stok",
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: "id tidak valid" });
+    const result = await pool.query(
+      `SELECT id, nama_barang, harga, stok_awal, stok_terjual, stok_akhir
+       FROM stok WHERE penjual_id = $1 AND tanggal = CURRENT_DATE
+       ORDER BY (stok_akhir > 0) DESC, nama_barang ASC`,
+      [id]
+    );
+    res.json(result.rows);
+  })
+);
+
 // Admin: daftar akun kang lauk lengkap dengan email (tidak dipublikasikan lewat GET / publik).
 router.get(
   "/accounts",

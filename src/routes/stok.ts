@@ -2,6 +2,7 @@ import { Router } from "express";
 import { pool } from "../db";
 import { requireAuth, AuthedRequest } from "../auth";
 import { asyncHandler } from "../asyncHandler";
+import { broadcastStok } from "../realtime";
 
 const router = Router();
 
@@ -41,6 +42,7 @@ router.post(
          WHERE id = $3 RETURNING *`,
         [stok_awal, harga, existing.rows[0].id]
       );
+      broadcastStok(Number(penjual_id));
       return res.status(200).json({ ...result.rows[0], merged: true });
     }
 
@@ -49,6 +51,7 @@ router.post(
        VALUES ($1, COALESCE($2, CURRENT_DATE), $3, $4, 0, $4, $5) RETURNING *`,
       [penjual_id, tanggal ?? null, namaBersih, stok_awal, harga]
     );
+    broadcastStok(Number(penjual_id));
     res.status(201).json(result.rows[0]);
   })
 );
@@ -126,6 +129,7 @@ router.put(
         [newNama, newAwal, newAkhir, newHarga, req.params.id]
       );
       await client.query("COMMIT");
+      broadcastStok(stok.penjual_id);
       res.json(result.rows[0]);
     } catch (err) {
       await client.query("ROLLBACK");
@@ -142,8 +146,9 @@ router.delete(
   "/:id",
   requireAuth("admin"),
   asyncHandler(async (req: AuthedRequest, res) => {
-    const result = await pool.query("DELETE FROM stok WHERE id = $1 RETURNING id", [req.params.id]);
+    const result = await pool.query("DELETE FROM stok WHERE id = $1 RETURNING id, penjual_id", [req.params.id]);
     if (!result.rowCount) return res.status(404).json({ error: "Stok tidak ditemukan" });
+    broadcastStok(result.rows[0].penjual_id);
     res.json({ ok: true });
   })
 );

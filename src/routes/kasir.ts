@@ -2,6 +2,7 @@ import { Router } from "express";
 import { pool } from "../db";
 import { requireAuth, AuthedRequest } from "../auth";
 import { asyncHandler } from "../asyncHandler";
+import { broadcastStok, emitTransaksi } from "../realtime";
 
 const router = Router();
 
@@ -58,6 +59,15 @@ router.post(
         stokList.push(updatedStok.rows[0]);
       }
       await client.query("COMMIT");
+      // Broadcast realtime: stok berkurang untuk semua yang memantau (kang lauk
+      // sendiri, admin, pembeli yang membuka menu). emitTransaksi = feed admin.
+      broadcastStok(req.user!.id);
+      emitTransaksi({
+        penjualId: req.user!.id,
+        penjualName: req.user!.name,
+        items: transaksiList.map((t) => ({ nama_barang: t.nama_barang, jumlah: t.jumlah, harga: Number(t.harga) })),
+        total: transaksiList.reduce((s, t) => s + t.jumlah * Number(t.harga), 0),
+      });
       res.status(201).json({ transaksi: transaksiList, stok: stokList });
     } catch (err) {
       await client.query("ROLLBACK");
@@ -102,6 +112,7 @@ router.delete(
       );
       await client.query("DELETE FROM transaksi_kasir WHERE id = $1", [trx.id]);
       await client.query("COMMIT");
+      broadcastStok(trx.penjual_id);
       res.json({ ok: true });
     } catch (err) {
       await client.query("ROLLBACK");
