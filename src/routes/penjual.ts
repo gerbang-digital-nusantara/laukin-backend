@@ -6,10 +6,11 @@ import { asyncHandler } from "../asyncHandler";
 
 const router = Router();
 
-// Status dianggap online hanya jika masih mengirim lokasi dalam 15 detik terakhir
-// (penjual mengirim tiap 3 detik). Ini mencegah status "online" nyangkut kalau
-// penjual menutup app/kehilangan koneksi tanpa sempat klik "Berhenti Berjualan".
-const STALE_THRESHOLD = "15 seconds";
+// Status dianggap online jika masih mengirim lokasi dalam ambang ini (penjual
+// mengirim tiap 3 detik). Diperlonggar ke 45 detik agar penjual TIDAK langsung
+// dianggap offline saat sesaat pindah aplikasi / layar terkunci / sinyal
+// tersendat — mereka baru offline kalau benar-benar berhenti mengirim.
+const STALE_THRESHOLD = "45 seconds";
 
 // Public endpoint: only non-sensitive fields for user-app map.
 router.get(

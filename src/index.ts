@@ -89,18 +89,15 @@ io.on("connection", (socket) => {
     }
   });
 
-  // Kalau koneksi socket putus (app ditutup paksa, HP mati, sinyal hilang) tanpa
-  // sempat kirim event "penjual:offline", tandai offline supaya tidak nyangkut online.
-  socket.on("disconnect", async () => {
-    if (trackedUserId == null) return;
-    try {
-      await pool.query("UPDATE penjual_profile SET status = 'offline', last_seen = now() WHERE user_id = $1", [
-        trackedUserId,
-      ]);
-      io.emit("penjual:offline", { id: trackedUserId });
-    } catch (err) {
-      console.error("disconnect cleanup error:", err);
-    }
+  // Sengaja TIDAK menandai offline seketika saat socket putus. Di HP, sekadar
+  // pindah aplikasi/mengunci layar sering memutus socket sesaat — kalau langsung
+  // di-offline, penjual "kedip" hilang dari peta padahal masih berjualan.
+  // Sebagai gantinya, status online ditentukan oleh ambang last_seen (45 detik)
+  // di query pembacaan: kalau penjual berhenti mengirim lokasi lebih dari itu,
+  // otomatis dianggap offline. Saat app dibuka lagi, socket reconnect & lokasi
+  // langsung terkirim ulang sehingga online kembali tanpa jeda.
+  socket.on("disconnect", () => {
+    trackedUserId = null;
   });
 });
 
